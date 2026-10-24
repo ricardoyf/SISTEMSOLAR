@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sistema Solar Interactivo v9</title>
+    <style>
+        /* --- ESTILOS GENERALES --- */
+        body { margin: 0; overflow: hidden; background-color: #0d0d15; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        
+        /* Pantalla de Carga */
+        #loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #050505; z-index: 9999; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; transition: opacity 0.5s;
+        }
+        .loader-text { color: #00d2ff; font-size: 1.5rem; margin-bottom: 20px; font-weight: bold; letter-spacing: 2px;}
+        .spinner {
+            width: 50px; height: 50px; border: 4px solid #222;
+            border-top: 4px solid #00d2ff; border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* --- UI: BOTONES SUPERIORES --- */
+        .top-controls {
+            position: fixed; top: 20px; left: 20px; display: flex; gap: 8px; z-index: 100;
+            flex-wrap: wrap;
+        }
+        .ui-btn {
+            background: rgba(30, 30, 40, 0.8); border: 1px solid rgba(255,255,255,0.2);
+            color: white; padding: 8px 16px; border-radius: 20px; cursor: pointer;
+            backdrop-filter: blur(5px); font-weight: 600; font-size: 0.9rem;
+            display: flex; align-items: center; gap: 6px; transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .ui-btn:hover { background: rgba(50, 50, 70, 0.9); border-color: #00d2ff; transform: translateY(-2px); }
+        .ui-btn:active { transform: translateY(0); }
+        
+        .btn-speed { width: 40px; justify-content: center; font-size: 1.2rem; padding: 5px 0; }
+        .speed-display { 
+            background: transparent; border: none; color: #00d2ff; font-family: monospace; 
+            padding: 8px 5px; cursor: default; box-shadow: none; 
+        }
+
+        .btn-reset { display: none; background: rgba(0, 210, 255, 0.2); border-color: #00d2ff; color: #00d2ff; }
+
+        /* --- UI: LEYENDA LATERAL --- */
+        .legend-panel {
+            position: fixed; top: 50%; right: 15px; transform: translateY(-50%);
+            display: flex; flex-direction: column; gap: 5px; z-index: 90;
+            max-height: 80vh; overflow-y: auto;
+        }
+        .legend-item {
+            background: rgba(0,0,0,0.6); padding: 8px 15px; border-radius: 8px;
+            color: #ccc; cursor: pointer; font-size: 0.9rem; text-align: right;
+            border-right: 3px solid transparent; transition: 0.2s;
+        }
+        .legend-item:hover {
+            background: rgba(255,255,255,0.15); color: white; border-right-color: #00d2ff;
+        }
+
+        /* --- UI: TARJETA DE DATOS --- */
+        .info-card {
+            position: fixed; bottom: 30px; left: 30px; width: 320px;
+            background: rgba(15, 20, 30, 0.95); border: 1px solid #444;
+            border-radius: 15px; padding: 20px; color: white;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            transform: translateY(150%); /* Oculto */
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 100;
+        }
+        .info-card.visible { transform: translateY(0); }
+        
+        .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 15px; }
+        .card-title { font-size: 1.6rem; color: #00d2ff; margin: 0; font-weight: 800; text-transform: uppercase; }
+        .card-close { background: none; border: none; color: #888; font-size: 1.8rem; cursor: pointer; line-height: 1; }
+        .card-close:hover { color: white; }
+
+        .fact-content { min-height: 90px; font-size: 1rem; line-height: 1.5; color: #eee; }
+        
+        .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; background: rgba(0,0,0,0.2); padding: 5px; border-radius: 20px; }
+        .card-nav-btn { background: #333; border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-weight: bold; transition: background 0.2s;}
+        .card-nav-btn:hover { background: #00d2ff; color: black; }
+        .page-indicator { font-size: 0.85rem; color: #aaa; font-family: monospace; }
+
+        /* Adaptación Móvil */
+        @media (max-width: 600px) {
+            .info-card { left: 5%; width: 90%; bottom: 20px; }
+            .legend-panel { display: none; } 
+            .top-controls { width: 100%; left: 0; padding: 10px; box-sizing: border-box; justify-content: center; }
+            .ui-btn { padding: 6px 12px; font-size: 0.8rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Cargador -->
+    <div id="loader">
+        <div class="loader-text" id="loader-text">Cargando Texturas...</div>
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Controles Superiores -->
+    <div class="top-controls">
+        <button class="ui-btn" id="btn-pause" onclick="togglePause()">⏸ Pausa</button>
+        <button class="ui-btn btn-speed" onclick="changeSpeed(-0.5)">🐢</button>
+        <div class="ui-btn speed-display" id="speed-indicator">1.0x</div>
+        <button class="ui-btn btn-speed" onclick="changeSpeed(0.5)">🚀</button>
+        <button class="ui-btn btn-reset" id="btn-reset" onclick="resetView()">🔭 Vista General</button>
+    </div>
+
+    <!-- Leyenda Lateral -->
+    <div class="legend-panel" id="legend-list"></div>
+
+    <!-- Tarjeta de Datos -->
+    <div class="info-card" id="info-card">
+        <div class="card-header">
+            <h2 class="card-title" id="card-title">Planeta</h2>
+            <button class="card-close" onclick="closeCard()">×</button>
+        </div>
+        <div class="fact-content" id="card-text">Dato curioso...</div>
+        <div class="card-footer">
+            <button class="card-nav-btn" onclick="prevFact()">&#10094;</button>
+            <span class="page-indicator" id="page-num">1 / 5</span>
+            <button class="card-nav-btn" onclick="nextFact()">&#10095;</button>
+        </div>
+    </div>
+
+    <!-- Lienzo 3D -->
+    <div id="canvas-container"></div>
+
+    <!-- Importmap -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- 1. DATOS EDUCATIVOS ---
+        const spaceData = {
+            'Sol': {
+                color: '#ffd700',
+                facts: [
+                    "El Sol contiene el 99.8% de toda la masa del Sistema Solar.",
+                    "La temperatura en su núcleo alcanza los 15 millones de grados Celsius.",
+                    "La luz del Sol tarda aproximadamente 8 minutos y 20 segundos en llegar a la Tierra.",
+                    "Es una estrella de tipo 'Enana Amarilla' y tiene unos 4.600 millones de años.",
+                    "¡Podrías meter más de 1.3 millones de Tierras dentro del Sol!"
+                ]
+            },
+            'Mercurio': {
+                facts: [
+                    "Es el planeta más pequeño y el más cercano al Sol.",
+                    "No tiene atmósfera, por lo que el cielo siempre se ve negro.",
+                    "Un año en Mercurio dura solo 88 días terrestres.",
+                    "Tiene temperaturas extremas: muy caliente de día y congelado de noche.",
+                    "Su superficie está llena de cráteres, muy parecida a nuestra Luna."
+                ]
+            },
+            'Venus': {
+                facts: [
+                    "Es el planeta más caliente (462°C) debido a su densa atmósfera.",
+                    "Gira en dirección contraria a la mayoría de los planetas (retrógrado).",
+                    "Un día en Venus es más largo que un año en Venus.",
+                    "Es el objeto más brillante en el cielo nocturno después de la Luna.",
+                    "Tiene miles de volcanes activos en su superficie."
+                ]
+            },
+            'Tierra': {
+                facts: [
+                    "Nuestro hogar, el único lugar conocido con vida en el universo.",
+                    "El 71% de su superficie está cubierta de agua líquida.",
+                    "Tiene un campo magnético que nos protege de la radiación solar.",
+                    "La atmósfera es rica en nitrógeno y oxígeno, perfecta para respirar.",
+                    "Tiene un solo satélite natural: La Luna."
+                ]
+            },
+            'Luna': {
+                facts: [
+                    "Es el quinto satélite más grande del sistema solar.",
+                    "Causa las mareas en los océanos de la Tierra.",
+                    "Siempre muestra la misma cara hacia la Tierra.",
+                    "Se aleja de la Tierra unos 3.8 centímetros cada año.",
+                    "Doce astronautas han caminado sobre su superficie."
+                ]
+            },
+            'Marte': {
+                facts: [
+                    "Conocido como el Planeta Rojo debido al óxido de hierro en su suelo.",
+                    "Tiene el volcán más alto del sistema solar: El Monte Olimpo (21 km).",
+                    "Tiene dos lunas pequeñas llamadas Fobos y Deimos.",
+                    "Hay evidencia de que tuvo agua líquida en el pasado.",
+                    "Sus tormentas de polvo pueden cubrir todo el planeta durante meses."
+                ]
+            },
+            'Júpiter': {
+                facts: [
+                    "Es el planeta más grande. Cabrían todos los demás planetas dentro de él.",
+                    "Es un gigante gaseoso, no tiene superficie sólida.",
+                    "Tiene una Gran Mancha Roja, una tormenta que dura siglos.",
+                    "Gira muy rápido: un día dura menos de 10 horas.",
+                    "Tiene más de 90 lunas, incluyendo Ganímedes, la más grande."
+                ]
+            },
+            'Saturno': {
+                facts: [
+                    "Famoso por sus complejos anillos de hielo y roca.",
+                    "Es tan poco denso que flotaría en una bañera gigante de agua.",
+                    "Tiene vientos súper rápidos en su atmósfera.",
+                    "Su luna Titán tiene lagos de metano y una atmósfera densa.",
+                    "Tarda 29 años terrestres en dar una vuelta al Sol."
+                ]
+            },
+            'Urano': {
+                facts: [
+                    "Es un gigante de hielo, el planeta más frío del sistema solar (-224°C).",
+                    "Gira 'tumbado' de lado, rodando sobre su órbita.",
+                    "Tiene anillos tenues y oscuros.",
+                    "Su color azul pálido se debe al metano en su atmósfera.",
+                    "Fue el primer planeta descubierto con un telescopio."
+                ]
+            },
+            'Neptuno': {
+                facts: [
+                    "Es el planeta más lejano y el más ventoso (vientos de 2,100 km/h).",
+                    "Tarda 165 años terrestres en orbitar el Sol.",
+                    "Es un gigante de hielo de color azul intenso.",
+                    "Su luna Tritón gira en dirección opuesta a la rotación del planeta.",
+                    "Tiene la 'Gran Mancha Oscura', una tormenta similar a la de Júpiter."
+                ]
+            }
+        };
+
+        // --- 2. CONFIGURACIÓN 3D ---
+        const scene = new THREE.Scene();
+        // Color de fondo gris muy oscuro para evitar contraste excesivo del negro
+        scene.background = new THREE.Color(0x111116);
+        scene.fog = new THREE.FogExp2(0x111116, 0.0006);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 5000);
+        camera.position.set(0, 140, 240);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        // Corrección de color para texturas más vivas
+        renderer.outputColorSpace = THREE.SRGBColorSpace; 
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxDistance = 1000;
+
+        // --- GESTIÓN DE RECURSOS ---
+        const manager = new THREE.LoadingManager();
+        manager.onLoad = () => {
+            const l = document.getElementById('loader');
+            l.style.opacity = '0';
+            setTimeout(()=> l.style.display='none', 500);
+        };
+        manager.onError = (url) => {
+            console.log('Error cargando: ' + url);
+        };
+
+        const texLoader = new THREE.TextureLoader(manager);
+
+        // --- TEXTURAS FIABLES (GitHub Raw) ---
+        // Usamos fuentes estables de three.js examples para evitar fallos
+        const textures = {
+            sun: 'https://upload.wikimedia.org/wikipedia/commons/9/99/Map_of_the_full_sun.jpg', // Wikimedia suele ir bien para el sol
+            mercury: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/mercury.jpg', // GitHub Three.js
+            venus: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/venus_atmosphere.jpg', // GitHub Three.js
+            earth: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_atmos_2048.jpg', // GitHub Three.js (Muy estable)
+            moon: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/moon_1024.jpg', // GitHub Three.js
+            mars: 'https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/mars_1k.jpg', // GitHub Three.js
+            jupiter: 'https://upload.wikimedia.org/wikipedia/commons/e/e2/Jupiter.jpg', // Wikimedia
+            saturn: 'https://upload.wikimedia.org/wikipedia/commons/b/b4/Saturn_%28planet%29_large.jpg', // Wikimedia
+            uranus: 'https://upload.wikimedia.org/wikipedia/commons/3/3d/Uranus2.jpg', // Wikimedia
+            neptune: 'https://upload.wikimedia.org/wikipedia/commons/5/56/Neptune_Full.jpg' // Wikimedia
+        };
+
+        // --- 3. ILUMINACIÓN "NO MÁS OSCURIDAD" ---
+        // Luz Ambiental fuerte (blanca/gris)
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); 
+        scene.add(ambientLight);
+
+        // Luz del Sol (Directional Point)
+        const sunLight = new THREE.PointLight(0xffffff, 2.0, 1500);
+        sunLight.position.set(0, 0, 0);
+        sunLight.castShadow = true;
+        scene.add(sunLight);
+
+        // --- 4. OBJETOS DEL SISTEMA ---
+        
+        // Estrellas
+        const starGeo = new THREE.BufferGeometry();
+        const starPos = [];
+        for(let i=0; i<5000; i++) {
+            starPos.push((Math.random()-0.5)*3000, (Math.random()-0.5)*3000, (Math.random()-0.5)*3000);
+        }
+        starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+        const starMat = new THREE.PointsMaterial({color: 0xeeeeee, size: 1.2, transparent: true, opacity: 0.8});
+        const stars = new THREE.Points(starGeo, starMat);
+        scene.add(stars);
+
+        // SOL
+        const sunGeo = new THREE.SphereGeometry(15, 64, 64);
+        const sunMat = new THREE.MeshBasicMaterial({ 
+            map: texLoader.load(textures.sun),
+            color: 0xffffff 
+        });
+        const sun = new THREE.Mesh(sunGeo, sunMat);
+        sun.userData = { name: "Sol", type: "star" };
+        scene.add(sun);
+        // Brillo solar
+        const sunGlow = new THREE.Mesh(
+            new THREE.SphereGeometry(17,32,32), 
+            new THREE.MeshBasicMaterial({color: 0xffaa00, transparent: true, opacity: 0.15, side: THREE.BackSide})
+        );
+        scene.add(sunGlow);
+
+        // CONFIGURACIÓN DE PLANETAS
+        const planetsData = [
+            { name: "Mercurio", r: 1.5, d: 30, s: 0.02, t: textures.mercury },
+            { name: "Venus",    r: 2.2, d: 45, s: 0.015, t: textures.venus },
+            { name: "Tierra",   r: 2.4, d: 65, s: 0.01, t: textures.earth, hasMoon: true },
+            { name: "Marte",    r: 1.8, d: 85, s: 0.008, t: textures.mars },
+            { name: "Júpiter",  r: 7.0, d: 130, s: 0.004, t: textures.jupiter },
+            { name: "Saturno",  r: 6.0, d: 170, s: 0.003, t: textures.saturn, ring: true },
+            { name: "Urano",    r: 4.0, d: 210, s: 0.002, t: textures.uranus },
+            { name: "Neptuno",  r: 3.9, d: 250, s: 0.001, t: textures.neptune }
+        ];
+
+        const planets = [];
+        const clickableObjects = [sun];
+
+        // Función para crear órbita visible (Línea Azul Cian)
+        function createOrbit(radius) {
+            const curve = new THREE.EllipseCurve(0,0, radius, radius*0.95, 0, 2*Math.PI);
+            const pts = curve.getPoints(128);
+            const geo = new THREE.BufferGeometry().setFromPoints(pts);
+            const mat = new THREE.LineBasicMaterial({ color: 0x00d2ff, transparent: true, opacity: 0.25 });
+            const line = new THREE.Line(geo, mat);
+            line.rotation.x = Math.PI/2;
+            scene.add(line);
+        }
+
+        planetsData.forEach(data => {
+            createOrbit(data.d);
+
+            // Grupo Pivot (Centro de rotación en el Sol)
+            const pivot = new THREE.Group();
+            pivot.userData = { angle: Math.random()*Math.PI*2, speed: data.s, dist: data.d, zDist: data.d*0.95 };
+            scene.add(pivot);
+
+            // Mesh del Planeta
+            const geo = new THREE.SphereGeometry(data.r, 64, 64);
+            // MeshStandardMaterial + Color de seguridad por si falla la textura
+            const mat = new THREE.MeshStandardMaterial({ 
+                map: texLoader.load(data.t, undefined, undefined, (err) => {
+                    // Si falla la carga, esto asegura que no sea negro
+                    console.log("Error textura " + data.name);
+                }),
+                color: 0xffffff, // Blanco base para que la textura se vea real
+                roughness: 0.6,
+                metalness: 0.1
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.userData = { name: data.name };
+            
+            // Posicionar inicialmente
+            mesh.position.set(data.d, 0, 0);
+            pivot.add(mesh); // Añadimos el mesh al pivot
+
+            // Extras: Anillos
+            if(data.ring) {
+                const rGeo = new THREE.RingGeometry(data.r*1.4, data.r*2.3, 64);
+                const pos = rGeo.attributes.position;
+                const uv = rGeo.attributes.uv;
+                // Mapeo UV radial para textura simulada
+                for(let i=0; i<pos.count; i++) uv.setXY(i, Math.sqrt(pos.getX(i)**2 + pos.getY(i)**2)/10, 0);
+                const rMat = new THREE.MeshBasicMaterial({color: 0xcfb693, side: THREE.DoubleSide, transparent:true, opacity:0.7});
+                const ring = new THREE.Mesh(rGeo, rMat);
+                ring.rotation.x = Math.PI/2;
+                mesh.add(ring);
+            }
+            
+            // Extras: Luna
+            if(data.hasMoon) {
+                const mGeo = new THREE.SphereGeometry(0.6, 32, 32);
+                const mMat = new THREE.MeshStandardMaterial({ 
+                    map: texLoader.load(textures.moon),
+                    color: 0xffffff 
+                });
+                const moon = new THREE.Mesh(mGeo, mMat);
+                moon.position.set(4, 0, 0);
+                moon.userData = { name: "Luna" };
+                
+                const moonPivot = new THREE.Group();
+                moonPivot.add(moon);
+                mesh.add(moonPivot);
+                
+                // Guardamos referencia para animar
+                pivot.userData.moonPivot = moonPivot;
+                clickableObjects.push(moon);
+            }
+
+            planets.push(pivot);
+            clickableObjects.push(mesh);
+            addLegendItem(data.name, mesh);
+        });
+
+        // --- 5. LÓGICA DE CONTROL ---
+        
+        let isPaused = false;
+        let timeScale = 1.0;
+        let focusedObj = null;
+        let currentFactIndex = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if(!isPaused) {
+                planets.forEach(p => {
+                    // Movimiento Orbital
+                    const speed = p.userData.speed * timeScale;
+                    p.userData.angle += speed;
+                    
+                    // Como el mesh está DENTRO del pivot, podemos simplemente posicionarlo
+                    // Pero para órbitas elípticas es mejor calcular coords X/Z
+                    const mesh = p.children[0];
+                    mesh.position.x = Math.cos(p.userData.angle) * p.userData.dist;
+                    mesh.position.z = Math.sin(p.userData.angle) * p.userData.zDist;
+                    
+                    // Rotación sobre sí mismo
+                    mesh.rotation.y += 0.005 * timeScale;
+
+                    // Luna
+                    if(p.userData.moonPivot) {
+                        p.userData.moonPivot.rotation.y += 0.05 * timeScale;
+                    }
+                });
+            } else if (focusedObj) {
+                // Rotación cosmética en pausa
+                focusedObj.rotation.y += 0.002;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // --- FUNCIONES UI Y LÓGICA ---
+
+        window.togglePause = () => {
+            isPaused = !isPaused;
+            document.getElementById('btn-pause').innerText = isPaused ? "▶ Reanudar" : "⏸ Pausa";
+        };
+
+        window.changeSpeed = (delta) => {
+            timeScale += delta;
+            if(timeScale < 0.1) timeScale = 0.1; // Mínimo
+            if(timeScale > 5.0) timeScale = 5.0; // Máximo
+            document.getElementById('speed-indicator').innerText = timeScale.toFixed(1) + "x";
+        };
+
+        window.resetView = () => {
+            isPaused = false;
+            focusedObj = null;
+            document.getElementById('btn-reset').style.display = 'none';
+            document.getElementById('btn-pause').innerText = "⏸ Pausa";
+            closeCard();
+            
+            // Animación suave hacia atrás
+            controls.enabled = false;
+            const startPos = camera.position.clone();
+            const endPos = new THREE.Vector3(0, 140, 240);
+            const startTarget = controls.target.clone();
+            const endTarget = new THREE.Vector3(0,0,0);
+            
+            let t = 0;
+            function zoomOut() {
+                t += 0.02;
+                if(t>=1) {
+                    camera.position.copy(endPos);
+                    controls.target.copy(endTarget);
+                    controls.enabled = true;
+                    return;
+                }
+                camera.position.lerpVectors(startPos, endPos, t);
+                controls.target.lerpVectors(startTarget, endTarget, t);
+                controls.update();
+                requestAnimationFrame(zoomOut);
+            }
+            zoomOut();
+        };
+
+        // --- SISTEMA DE TARJETAS ---
+        window.closeCard = () => {
+            document.getElementById('info-card').classList.remove('visible');
+        };
+        window.nextFact = () => changeFact(1);
+        window.prevFact = () => changeFact(-1);
+
+        function changeFact(dir) {
+            if(!focusedObj) return;
+            const name = focusedObj.userData.name;
+            const data = spaceData[name];
+            if(!data) return;
+            
+            currentFactIndex += dir;
+            if(currentFactIndex >= data.facts.length) currentFactIndex = 0;
+            if(currentFactIndex < 0) currentFactIndex = data.facts.length - 1;
+            
+            updateCard(name, data);
+        }
+
+        function updateCard(name, data) {
+            document.getElementById('card-title').innerText = name;
+            document.getElementById('card-title').style.color = data.color || '#00d2ff';
+            document.getElementById('card-text').innerText = data.facts[currentFactIndex];
+            document.getElementById('page-num').innerText = `${currentFactIndex+1} / ${data.facts.length}`;
+        }
+
+        function focusObject(mesh) {
+            focusedObj = mesh;
+            isPaused = true;
+            document.getElementById('btn-pause').innerText = "▶ Reanudar";
+            document.getElementById('btn-reset').style.display = 'flex';
+            
+            // Mostrar Info
+            const name = mesh.userData.name;
+            const data = spaceData[name];
+            if(data) {
+                currentFactIndex = 0;
+                updateCard(name, data);
+                document.getElementById('info-card').classList.add('visible');
+            }
+
+            // Mover Cámara
+            const offset = (name === "Sol") ? 40 : mesh.geometry.parameters.radius * 4;
+            // Calculamos posición destino basada en la posición actual del objeto
+            const targetPos = mesh.getWorldPosition(new THREE.Vector3()).clone();
+            targetPos.x += offset; 
+            targetPos.y += offset * 0.5;
+            targetPos.z += offset;
+
+            controls.enabled = false;
+            const startPos = camera.position.clone();
+            const startTarget = controls.target.clone();
+            let t = 0;
+            
+            function zoomIn() {
+                t += 0.04;
+                if(t>=1) {
+                    controls.target.copy(mesh.getWorldPosition(new THREE.Vector3()));
+                    controls.enabled = true;
+                    return;
+                }
+                camera.position.lerpVectors(startPos, targetPos, t);
+                controls.target.lerpVectors(startTarget, mesh.getWorldPosition(new THREE.Vector3()), t);
+                controls.update();
+                requestAnimationFrame(zoomIn);
+            }
+            zoomIn();
+        }
+
+        // --- EVENTOS CLICK ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        window.addEventListener('mousedown', (e) => {
+            // Ignorar si clic en UI
+            if(e.target.closest('.ui-btn') || e.target.closest('.legend-panel') || e.target.closest('.info-card')) return;
+            
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(clickableObjects);
+            
+            if(intersects.length > 0) {
+                focusObject(intersects[0].object);
+            }
+        });
+
+        function addLegendItem(name, mesh) {
+            const div = document.createElement('div');
+            div.className = 'legend-item';
+            div.innerText = name;
+            div.onclick = (e) => { e.stopPropagation(); focusObject(mesh); };
+            document.getElementById('legend-list').appendChild(div);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+</body>
+</html>
+
+
+ 
