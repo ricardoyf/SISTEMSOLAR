@@ -4,6 +4,8 @@ Explorador del sistema solar en español, desarrollado a partir de `Sol9.html` p
 
 ## Abrir
 
+**Web publicada:** [Abrir Órbita · Sistema solar didáctico](https://ricardoyf.github.io/SISTEMSOLAR/).
+
 Abre **`index.html`** en un navegador moderno. El HTML contiene el código, los estilos, el motor 3D y las texturas procedurales: no necesita un servidor ni descargas externas para la experiencia. Los enlaces a NASA sí requieren internet.
 
 La escena 3D requiere WebGL. Si el navegador no lo ofrece, las fichas, las comparaciones y las actividades siguen funcionando. En algunos móviles la aplicación de archivos previsualiza el HTML sin ejecutar JavaScript; abrir la versión de GitHub Pages con el navegador evita esa limitación.
@@ -60,7 +62,7 @@ Este proyecto se publica desde la raíz de la rama `main`:
 3. Seleccionar **main** y **/(root)**, y guardar.
 4. Esperar a que GitHub confirme el despliegue y utilizar la dirección mostrada por Pages.
 
-El archivo `.nojekyll` permite publicar el HTML estático directamente. No hay claves, servidor de aplicación ni base de datos. No se incluye una dirección de Pages hasta que exista un despliegue verificado.
+El archivo `.nojekyll` permite publicar el HTML estático directamente. No hay claves, servidor de aplicación ni base de datos. Publicación verificada en https://ricardoyf.github.io/SISTEMSOLAR/.
 
 ## Comprobaciones de esta entrega
 
